@@ -3,7 +3,7 @@ import scipy.io.wavfile as wv
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats as sts
-from scipy.signal import argrelextrema
+import scipy.signal as sig
 
 
 def read_file(filename):
@@ -14,23 +14,27 @@ def read_file(filename):
     return rate, voice
 
 
+def cut_signal_length(signal, rate, sec):
+    length = sec * rate - 1
+    cut_signal = signal[0:length]
+    return cut_signal
+
+
 def autocorr(x):
     result = np.correlate(x, x, mode='full')
     return result[result.size/2:]
 
 
 def lowpass(voice, rate, threshold):
-    spectrum = np.fft.fft(voice)
-    spectrum = spectrum.real
-    freqs = np.fft.fftfreq(len(voice), 1/rate)
-    for i in range(len(voice)):
-        if freqs[i] >= threshold:
-            spectrum[i] = 0
-    lowpass_voice = np.fft.ifft(spectrum)
+    order = 4
+    thr = threshold / (rate * 0.5)
+    b, a = sig.butter(order, thr, 'low')
+    lowpass_voice = sig.filtfilt(b, a, voice)
     return lowpass_voice
 
 
-rate, voice = read_file("train/002_M.wav")
+rate, voice = read_file("train/003_K.wav")
+voice = cut_signal_length(voice, rate, 3)
 
 # ln = len(voice)
 # cor = []
@@ -68,11 +72,10 @@ rate, voice = read_file("train/002_M.wav")
 #print(f)
 filtered_voice = lowpass(voice, rate, 500)
 auto_correlated = autocorr(filtered_voice)
-maximum = argrelextrema(auto_correlated, np.greater)
+maximum = sig.argrelextrema(auto_correlated, np.greater)
 T = abs(maximum[0][0] - maximum[0][1]) / rate
 f = 1/T
-sorted = voice[maximum[0]].sort()
-print(maximum[0][0:29])
+print(f)
 plt.subplot(311)
 plt.plot(voice)
 plt.subplot(312)
