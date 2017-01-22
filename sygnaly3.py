@@ -1,9 +1,11 @@
 import scipy.io.wavfile as wv
 import numpy as np
 import re
-import os
+import sys
 import scipy.signal as sig
 from sklearn import linear_model, datasets
+import os
+import pickle
 
 
 def read_file(filename):
@@ -40,19 +42,7 @@ def get_key(i):
 def gender(filename):
     global voice
     rate, voice = read_file("train/" + filename)
-
-    # voice = cut_signal_length(voice, rate, 1)
-
-
-    filtered_voice = lowpass(voice, rate, 1000)
-    auto_correlated = autocorr(filtered_voice)
-    maximum = sig.argrelextrema(auto_correlated, np.greater)
-    sorted_maximum = sorted(maximum[0], key=get_key, reverse=True)
-    # T = abs(sorted_maximum[0] - sorted_maximum[1]) / rate
-    # T = abs(maximum[0][0] - maximum[0][1]) / rate
-    diffs = np.diff(maximum[0])
-    T = np.average(diffs) / rate
-    f = 1 / T
+    f = get_base_freq(voice, rate)
     if (re.match("\d\d\d_M.wav", filename)):
         Y_set.append("M")
     else:
@@ -63,25 +53,23 @@ def gender(filename):
     print(f, ' - ', filename)
 
 
-def main():
+def get_base_freq(voice, rate):
+    filtered_voice = lowpass(voice, rate, 1000)
+    auto_correlated = autocorr(filtered_voice)
+    maximum = sig.argrelextrema(auto_correlated, np.greater)
+    diffs = np.diff(maximum[0])
+    T = np.average(diffs) / rate
+    f = 1 / T
+    return f
+
+
+def train():
     global f_set
     global Y_set
     Y_set = []
     f_set = []
-    files = []
-    # files.append('010_M.wav')
-    # files.append('011_M.wav')
-    # files.append('013_M.wav')
-    # files.append('017_M.wav')
-    #
-    # files.append('014_K.wav')
-    # files.append('015_K.wav')
-    # files.append('016_K.wav')
-    # files.append('018_K.wav')
-
-    # for file in files:
-    #     gender(file)
-    for filename in os.listdir('train'):
+    files = os.listdir('train')
+    for filename in files:
         gender(filename)
 
     logistic = linear_model.LogisticRegression(C=1e5)
@@ -97,5 +85,17 @@ def main():
         print("plik - ", file, " predict - ", p)
         i +=1
     print("miss = ", miss_count)
+
+    pickle.dump(logreg, open("logreg.p", "wb"))
+
+
+def main():
+    logreg = pickle.load(open("logreg.p", "rb"))
+    filename = sys.argv[1]
+    global voice
+    rate, voice = read_file("train/" + filename)
+    f = get_base_freq(voice, rate)
+    predicted_gender = logreg.predict(f)[0]
+    print(predicted_gender)
 
 main()
